@@ -1,0 +1,6 @@
+Meeting report from January 12
+
+Topics discussed:
+ - System update
+ - Sprint planning
+ - Monitoring improvement
