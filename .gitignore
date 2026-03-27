@@ -1,0 +1,14 @@
+target/
+out/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### Python ###
+.python-version
