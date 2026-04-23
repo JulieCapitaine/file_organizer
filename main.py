@@ -2,6 +2,7 @@ import argparse
 import logging
 import shutil
 import sys
+from datetime import date
 from pathlib import Path
 
 EXTENSION_CATEGORIES = {
@@ -77,29 +78,36 @@ def _get_category(extension: str) -> str:
     return 'others'
 
 
-def _copy_files_to_subfolders(source_dir: Path, category_dirs: dict[str, Path]) -> None:
+def _copy_files_to_subfolders(source_dir: Path, category_dirs: dict[str, Path]) -> dict[str, int]:
     """
     Copy all files from the source folder into the appropriate category folders.
 
     Args:
         source_dir: Folder where the source files are located.
         category_dirs: Mapping of category name -> destination folder path.
+
+    Returns:
+        Dict with category -> file count
     """
+    counts = {cat: 0 for cat in category_dirs}
+
     for file in source_dir.iterdir():
         if file.is_file():
             ext = file.suffix.lower()
             category = _get_category(ext)
-
             dest = category_dirs[category] / file.name
 
             try:
                 shutil.copy2(file, dest)
                 logging.info(f"Copied {file} -> {dest}")
+                counts[category] += 1
             except Exception as e:
                 logging.error(f"Failed to copy {file}: {e}")
 
+    return counts
 
-def _clean_txt_files(dir: Path) -> None:
+
+def _clean_txt_files(dir: Path) -> list[Path]:
     """
     Clean all .txt files inside the destination directory:
     - remove empty lines
@@ -107,24 +115,70 @@ def _clean_txt_files(dir: Path) -> None:
 
     Args:
         dir: Folder where .txt files are located.
+
+    Returns:
+        List of cleaned .txt file paths.
     """
+    cleaned = []
+
     for txt_file in dir.rglob("*.txt"):
         try:
-            cleaned_lines = []
-
             with txt_file.open("r", encoding="utf-8") as f:
                 cleaned_lines = [
                     line.strip()
                     for line in f
                     if line.strip()  # skip empty lines
                 ]
+
             with txt_file.open("w", encoding="utf-8") as f:
                 f.write("\n".join(cleaned_lines))
 
             logging.info(f"Cleaned {txt_file}")
+            cleaned.append(txt_file.relative_to(dir))
 
         except Exception as e:
             logging.error(f"Failed to clean {txt_file}: {e}")
+
+    return cleaned
+
+
+def _generate_report(dest_dir: Path,
+                     files_per_category: dict[str, int],
+                     cleaned_txt_files: list[Path] | None) -> None:
+    """
+    Generate the final report file in the destination folder.
+
+    Args:
+        dest_dir: Folder where the report will be created.
+        files_per_category: Counts of files per category.
+        cleaned_txt_files: List of cleaned .txt files (or None if cleaning disabled).
+
+    Returns:
+        None
+    """
+    today = date.today().isoformat()
+    report_path = dest_dir / f"report_{today}.txt"
+
+    try:
+        with report_path.open("w", encoding="utf-8") as f:
+            f.write("=== File Organizer Report ===\n\n")
+            f.write(f"Total files processed: {sum(files_per_category.values())}\n\n")
+
+            f.write("Files per category:\n")
+            for cat, count in files_per_category.items():
+                f.write(f"- {cat}: {count}\n")
+
+            f.write("\n")
+
+            if cleaned_txt_files is not None:
+                f.write("Cleaned .txt files:\n")
+                for path in cleaned_txt_files:
+                    f.write(f"- {path}\n")
+
+        logging.info(f"Report generated: {report_path}")
+
+    except Exception as e:
+        logging.error(f"Failed to generate report: {e}")
 
 
 def main() -> None:
@@ -159,10 +213,13 @@ def main() -> None:
     _prepare_destination_dir(dest_dir)
 
     subfolders = _create_category_folders(dest_dir)
-    _copy_files_to_subfolders(source_dir, subfolders)
+    files_per_category = _copy_files_to_subfolders(source_dir, subfolders)
 
+    cleaned_txt_files = None
     if args.clean:
-        _clean_txt_files(dest_dir)
+        cleaned_txt_files = _clean_txt_files(dest_dir)
+
+    _generate_report(dest_dir, files_per_category, cleaned_txt_files)
 
 
 if __name__ == "__main__":
