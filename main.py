@@ -99,6 +99,34 @@ def _copy_files_to_subfolders(source_dir: Path, category_dirs: dict[str, Path]) 
                 logging.error(f"Failed to copy {file}: {e}")
 
 
+def _clean_txt_files(dir: Path) -> None:
+    """
+    Clean all .txt files inside the destination directory:
+    - remove empty lines
+    - strip leading/trailing spaces
+
+    Args:
+        dir: Folder where .txt files are located.
+    """
+    for txt_file in dir.rglob("*.txt"):
+        try:
+            cleaned_lines = []
+
+            with txt_file.open("r", encoding="utf-8") as f:
+                cleaned_lines = [
+                    line.strip()
+                    for line in f
+                    if line.strip()  # skip empty lines
+                ]
+            with txt_file.open("w", encoding="utf-8") as f:
+                f.write("\n".join(cleaned_lines))
+
+            logging.info(f"Cleaned {txt_file}")
+
+        except Exception as e:
+            logging.error(f"Failed to clean {txt_file}: {e}")
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -113,6 +141,9 @@ def main() -> None:
                         type=str,
                         default='output/',
                         help='Destination folder for organized files (default: output/)')
+    parser.add_argument('--clean',
+                        action='store_true',
+                        help='Clean .txt files')
 
     args = parser.parse_args()
 
@@ -122,11 +153,16 @@ def main() -> None:
     dest_dir = Path(args.destination).resolve()
     logging.info(f"Destination: {dest_dir}")
 
+    logging.info(f"Clean .txt files: {args.clean}")
+
     _check_dir_exists(source_dir)
     _prepare_destination_dir(dest_dir)
 
     subfolders = _create_category_folders(dest_dir)
     _copy_files_to_subfolders(source_dir, subfolders)
+
+    if args.clean:
+        _clean_txt_files(dest_dir)
 
 
 if __name__ == "__main__":
